@@ -5,7 +5,7 @@ library(e1071)
 
 start_time <- Sys.time()
 
-lasc <-readLAScatalog("D:/1_Work/4_Bauges/LAS_Hauteur_500m/tests_for_lidr/las/")
+lasc <- readLAScatalog("D:/1_Work/4_Bauges/LAS_Hauteur_500m/las/")
 las_check(lasc)
 
 rs <- 30 #resolution of the grid
@@ -14,11 +14,11 @@ area_filt <- 0.9*rs*rs #min area threshold for the area, in a pixel, sampled by 
 
 ##defining processing parameters
 plan(multisession, workers = 4L)
-opt_chunk_buffer(lasc) <- 0
-opt_chunk_size(lasc)   <- 0
+opt_chunk_buffer(lasc) <- 10
+opt_chunk_size(lasc)   <- 720
 opt_stop_early(lasc) <- TRUE
-opt_filter(lasc) <- "-drop_withheld" #note sure about this. Buffer issue is still causing confusion
-plot(lasc, chunk_pattern = TRUE)
+#opt_filter(lasc) <- "-drop_withheld" #note sure about this. Buffer issue is still causing confusion
+#plot(lasc, chunk_pattern = TRUE)
 opt_select(lasc) <- "xyzClassificationScanAngleRankgpstimeReturnNumber"
 opt <- list(raster_alignment = rs, automerge = TRUE)
 
@@ -84,7 +84,6 @@ mymets = function(x, y, z, sc, flid, rn)
   
   
   dframe <- as.data.frame(cbind(x, y, z, sc, flid, rn))
-  dframe <- dframe[which(dframe$z>=2),]
   #added the following because some flight lines had less than 3 points. Area computation was returning an error.
   dframe <- dframe %>%
     group_by(flid) %>%
@@ -116,6 +115,7 @@ mymets = function(x, y, z, sc, flid, rn)
     ##drop all flight lines that do not satisfy the threshold criteria i.e. 90% of the area of a cell
     fl <- fl %>% filter(area>area_filt)
     
+    print(fl)
   
     ##if there are no flight lines in a cell from which the cell was sampled insufficiently, we skip to else condition to return
     #a stack of NA values
@@ -166,6 +166,10 @@ mymets = function(x, y, z, sc, flid, rn)
       fin_flist$area <- as.numeric(fin_flist$area)
       fin_flist$median <- as.numeric(fin_flist$median)
       
+      print(fin_flist)
+      
+
+      
 
       
       #Computation of the metrics and compiling in a list. Each value in a list is the computed metric for a given class
@@ -175,7 +179,7 @@ mymets = function(x, y, z, sc, flid, rn)
         if (fin_flist$flist[i] < 90)
         {
           dframe2 <- dframe[which(dframe$flid == fin_flist$flist[i]),]
-          met_list[i] <- mean(dframe2$z)
+          met_list[i] <- func_varch(dframe2$z, dframe2$rn)
         }
         else
         {
@@ -220,8 +224,9 @@ mymets = function(x, y, z, sc, flid, rn)
 
 
 
-test_las <- catalog_apply(lasc, met_calc, res = rs, .options = opt)
+test_mean <- catalog_apply(lasc, met_calc, res = rs, .options = opt)
 
 end_time <- Sys.time()
 
 end_time - start_time
+?grid_canopy
